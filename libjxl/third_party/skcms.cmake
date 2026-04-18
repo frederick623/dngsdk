@@ -13,7 +13,7 @@
 # limitations under the License.
 
 function(target_link_skcms TARGET_NAME)
-  set(_sources_dir "${PROJECT_SOURCE_DIR}/third_party/skcms")
+  set(_sources_dir "${PROJECT_SOURCE_DIR}/libjxl/third_party/skcms")
   set(_sources
     "${_sources_dir}/skcms.cc"
     "${_sources_dir}/src/skcms_TransformBaseline.cc"

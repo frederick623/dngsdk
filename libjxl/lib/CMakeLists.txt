@@ -179,15 +179,3 @@ endif()
 # together at build time.
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/jxl
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
-
-if(BUILD_TESTING)
-  include(GoogleTest)
-endif()
-
-# Tests for the jxl library.
-include(jxl_tests.cmake)
-
-if(BUILD_TESTING)
-  # Google benchmark for the jxl library
-  include(jxl_benchmark.cmake)
-endif()
