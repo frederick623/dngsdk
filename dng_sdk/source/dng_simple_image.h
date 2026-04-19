@@ -62,11 +62,15 @@ class dng_simple_image : public dng_image
 		virtual void Offset (const dng_point &offset);
 		
 		/// Get the buffer for direct processing. (Unique to dng_simple_image.)
-		
 		void GetPixelBuffer (dng_pixel_buffer &buffer)
-			{
+		{
 			buffer = fBuffer;
-			}
+		}
+
+		void GetPixelBuffer (dng_pixel_buffer &buffer) const
+		{
+			buffer = fBuffer;
+		}
 
 	protected:
 	

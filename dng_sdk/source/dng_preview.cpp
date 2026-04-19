@@ -1063,5 +1063,9 @@ void dng_preview_list::Append (AutoPtr<dng_preview> &preview)
 		}
 	
 	}
+
+void dng_preview_list::Append (std::shared_ptr<dng_preview> preview) {
+	fPreview.push_back (preview);
+}
 		
 /*****************************************************************************/

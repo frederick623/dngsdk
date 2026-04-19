@@ -388,7 +388,8 @@ class dng_preview_list
 			}
 			
 		void Append (AutoPtr<dng_preview> &preview);
-	
+
+		void Append (std::shared_ptr<dng_preview> preview);
 	};
 
 /*****************************************************************************/
