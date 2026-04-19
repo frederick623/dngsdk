@@ -536,12 +536,12 @@ endif()
 message(STATUS "CMAKE_EXECUTABLE_SUFFIX = ${CMAKE_EXECUTABLE_SUFFIX}")
 
 set(JPEG_SOURCES jcapimin.c jcapistd.c jccoefct.c jccolor.c jcdctmgr.c jchuff.c
-  jcicc.c jcinit.c jcmainct.c jcmarker.c jcmaster.c jcomapi.c jcparam.c
-  jcphuff.c jcprepct.c jcsample.c jctrans.c jdapimin.c jdapistd.c jdatadst.c
-  jdatasrc.c jdcoefct.c jdcolor.c jddctmgr.c jdhuff.c jdicc.c jdinput.c
-  jdmainct.c jdmarker.c jdmaster.c jdmerge.c jdphuff.c jdpostct.c jdsample.c
+  jcinit.c jcmainct.c jcmarker.c jcmaster.c jcomapi.c jcparam.c
+  jcprepct.c jcsample.c jctrans.c jdapimin.c jdapistd.c jdatadst.c
+  jdatasrc.c jdcoefct.c jdcolor.c jddctmgr.c jdhuff.c jdinput.c
+  jdmainct.c jdmarker.c jdmaster.c jdmerge.c jdpostct.c jdsample.c
   jdtrans.c jerror.c jfdctflt.c jfdctfst.c jfdctint.c jidctflt.c jidctfst.c
-  jidctint.c jidctred.c jquant1.c jquant2.c jutils.c jmemmgr.c jmemnobs.c)
+  jidctint.c jquant1.c jquant2.c jutils.c jmemmgr.c jmemnobs.c)
 
 if(WITH_ARITH_ENC OR WITH_ARITH_DEC)
   set(JPEG_SOURCES ${JPEG_SOURCES} jaricom.c)
@@ -615,22 +615,19 @@ endif()
 if(WIN32)
   set(USE_SETMODE "-DUSE_SETMODE")
 endif()
-if(WITH_12BIT)
-  set(COMPILE_FLAGS "-DGIF_SUPPORTED -DPPM_SUPPORTED ${USE_SETMODE}")
-else()
-  set(COMPILE_FLAGS "-DBMP_SUPPORTED -DGIF_SUPPORTED -DPPM_SUPPORTED -DTARGA_SUPPORTED ${USE_SETMODE}")
-  set(CJPEG_BMP_SOURCES rdbmp.c rdtarga.c)
-  set(DJPEG_BMP_SOURCES wrbmp.c wrtarga.c)
-endif()
 
 if(ENABLE_STATIC)
+  add_library(jpeg-static STATIC ${JPEG_SOURCES} rdppm.c wrppm.c)
+  if(NOT MSVC)
+    set_target_properties(jpeg-static PROPERTIES OUTPUT_NAME jpeg)
+  endif()
   add_executable(cjpeg-static cjpeg.c cdjpeg.c rdgif.c rdppm.c rdswitch.c
-    ${CJPEG_BMP_SOURCES})
+    rdbmp.c rdtarga.c ${CJPEG_BMP_SOURCES})
   set_property(TARGET cjpeg-static PROPERTY COMPILE_FLAGS ${COMPILE_FLAGS})
   target_link_libraries(cjpeg-static jpeg-static)
 
   add_executable(djpeg-static djpeg.c cdjpeg.c rdcolmap.c rdswitch.c wrgif.c
-    wrppm.c ${DJPEG_BMP_SOURCES})
+    wrppm.c wrbmp.c wrtarga.c ${DJPEG_BMP_SOURCES})
   set_property(TARGET djpeg-static PROPERTY COMPILE_FLAGS ${COMPILE_FLAGS})
   target_link_libraries(djpeg-static jpeg-static)
 

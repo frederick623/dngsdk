@@ -6,7 +6,7 @@ ADD_DEFINITIONS(${EXPAT_DEFINITIONS})
 # =======================================================
 # XMP SDK source code.
 
-ADD_LIBRARY( xmp-sdk STATIC 
+ADD_LIBRARY( xmp-sdk STATIC
              ${CMAKE_CURRENT_SOURCE_DIR}/source/Host_IO-POSIX.cpp
 #            ${CMAKE_CURRENT_SOURCE_DIR}/source/Host_IO-Win.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/source/IOUtils.cpp
@@ -20,10 +20,13 @@ ADD_LIBRARY( xmp-sdk STATIC
              ${CMAKE_CURRENT_SOURCE_DIR}/source/XMPFiles_IO.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/ExpatAdapter.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/ParseRDF.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/WXMPDocOps.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/WXMPIterator.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/WXMPMeta.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/WXMPUtils.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPCore_Impl.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPDocOps.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPDocOps-Utils.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPIterator.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPMeta-GetSet.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPMeta-Parse.cpp
@@ -31,14 +34,17 @@ ADD_LIBRARY( xmp-sdk STATIC
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPMeta.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPUtils-FileInfo.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPUtils.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/MD5.cpp )
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/zuid/sources/MD5.cpp
+)
+
+add_definitions(-DBUILDING_XMPCORE_LIB=1 -DXMP_COMPONENT_INT_NAMESPACE=AdobeXMPCore_Int)
 
 IF(APPLE)
     TARGET_COMPILE_DEFINITIONS( xmp-sdk PUBLIC 
                             -DMAC_ENV=1             # Windows is -DWIN_ENV=1
                           )
 ELSEIF(UNIX)
-    TARGET_COMPILE_DEFINITIONS( xmp-sdk PUBLIC 
+    TARGET_COMPILE_DEFINITIONS( xmp-sdk PUBLIC
                             -DUNIX_ENV=1             # Windows is -DWIN_ENV=1
                           )
 ELSE()
@@ -49,5 +55,6 @@ ENDIF()
 
 TARGET_COMPILE_OPTIONS( xmp-sdk PRIVATE -w )
 
-TARGET_INCLUDE_DIRECTORIES( xmp-sdk PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/public/include 
+TARGET_INCLUDE_DIRECTORIES( xmp-sdk PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/public/include
+                                    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third-party/zuid/interfaces
                                     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
