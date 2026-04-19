@@ -74,5 +74,5 @@ function(target_link_skcms TARGET_NAME)
   endif()
 
   target_sources(${TARGET_NAME} PRIVATE "${_sources}")
-  target_include_directories(${TARGET_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/third_party/skcms/")
+  target_include_directories(${TARGET_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/libjxl/third_party/skcms/")
 endfunction()

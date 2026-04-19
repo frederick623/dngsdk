@@ -22,7 +22,6 @@ set(JPEGXL_DEC_INTERNAL_LIBS
   Threads::Threads
   ${ATOMICS_LIBRARIES}
 )
-
 if (JPEGXL_ENABLE_TRANSCODE_JPEG OR JPEGXL_ENABLE_BOXES)
 list(APPEND JPEGXL_DEC_INTERNAL_LIBS brotlidec brotlicommon)
 endif()
@@ -114,7 +113,7 @@ target_include_directories(jxl_dec-obj BEFORE PUBLIC
 target_compile_definitions(jxl_dec-obj PUBLIC
   ${OBJ_COMPILE_DEFINITIONS}
 )
-target_link_libraries(jxl_dec-obj PUBLIC jxl_base)
+target_link_libraries(jxl_dec-obj PUBLIC jxl_base hwy)
 
 # Object library. This is used to hold the set of objects and properties.
 add_library(jxl_enc-obj OBJECT ${JPEGXL_INTERNAL_ENC_SOURCES})
@@ -129,7 +128,7 @@ target_include_directories(jxl_enc-obj BEFORE PUBLIC
 target_compile_definitions(jxl_enc-obj PUBLIC
   ${OBJ_COMPILE_DEFINITIONS}
 )
-target_link_libraries(jxl_enc-obj PUBLIC jxl_base)
+target_link_libraries(jxl_enc-obj PUBLIC jxl_base hwy)
 
 set_target_properties(jxl_dec-obj PROPERTIES
   CXX_VISIBILITY_PRESET hidden

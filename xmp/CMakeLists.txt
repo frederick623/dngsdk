@@ -30,7 +30,8 @@ ADD_LIBRARY( xmp-sdk STATIC
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPMeta-Serialize.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPMeta.cpp
              ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPUtils-FileInfo.cpp
-             ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPUtils.cpp )
+             ${CMAKE_CURRENT_SOURCE_DIR}/XMPCore/source/XMPUtils.cpp
+             ${CMAKE_CURRENT_SOURCE_DIR}/MD5.cpp )
 
 IF(APPLE)
     TARGET_COMPILE_DEFINITIONS( xmp-sdk PUBLIC 
