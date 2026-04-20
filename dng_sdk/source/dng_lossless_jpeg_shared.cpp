@@ -3497,68 +3497,48 @@ inline int dng_lossless_encoder<simd>::EmitBitsToBuffer (int buffered_bits,
 /*****************************************************************************/
 
 template <SIMDType simd>
-inline int dng_lossless_encoder<simd>::EncodeOneDiffToBuffer (int diff,
-															  HuffmanTable *dctbl,
-															  int buffered_bits,
-															  uint64 &bit_buffer)
-	{
-	
-	DNG_ASSERT(buffered_bits < 64, "buffered_bits too big(1)");
-	
-	if (buffered_bits > 32)
-		{
-		buffered_bits = EmitBitsToBuffer(buffered_bits, bit_buffer);
-		}
-		
-	// Encode the DC coefficient difference per section F.1.2.1
+inline int dng_lossless_encoder<simd>::EncodeOneDiffToBuffer(int diff,
+                                                              HuffmanTable *dctbl,
+                                                              int buffered_bits,
+                                                              uint64 &bit_buffer)
+{
+    DNG_ASSERT(buffered_bits < 64, "buffered_bits too big(1)");
 
-	int temp  = diff;
-	int temp2 = diff;
+    if (buffered_bits > 32)
+        buffered_bits = EmitBitsToBuffer(buffered_bits, bit_buffer);
 
-	if (temp < 0)
-		{
+    // ── Branchless abs + complement ──────────────────────────────────────────
+    // sign = 0x00000000 if diff >= 0, 0xFFFFFFFF if diff < 0
+    // This uses an arithmetic right-shift, which sign-extends on all modern CPUs.
+    const int sign = diff >> 31;
+    const int temp  = (diff ^ sign) - sign;   // abs(diff)  — no branch
+    const int temp2 =  diff + sign;            // diff >= 0 → diff; diff < 0 → diff-1
 
-		temp = -temp;
+    // ── Hardware CLZ replaces numBitsTable lookup ────────────────────────────
+    // __builtin_clz  →  ARM CLZ instruction / x86 LZCNT or BSR
+    // For temp == 0 (diff == 0), nbits must be 0; handle as a special case
+    // because __builtin_clz(0) is undefined behavior.
+    const int nbits = temp ? (32 - __builtin_clz(static_cast<unsigned>(temp))) : 0;
 
-		// For a negative input, want temp2 = bitwise complement of
-		// abs (input).	 This code assumes we are on a two's complement
-		// machine.
+    // ── Emit Huffman symbol (two ops folded into one expression each) ────────
+    const int bits_bits = dctbl->ehufsi[nbits];
+    bit_buffer = (bit_buffer << bits_bits) | static_cast<uint64>(dctbl->ehufco[nbits]);
+    buffered_bits += bits_bits;
 
-		temp2--;
+    // ── Emit value bits ──────────────────────────────────────────────────────
+    // nbits & 15 == 0 only when nbits is 0 or 16 — same logic as original
+    if (nbits & 15)
+    {
+        // Mask is 0xFFFF >> (16 - nbits); precomputed as (1 << nbits) - 1
+        // avoids a variable-length shift on some architectures.
+        const uint32 mask = (1u << nbits) - 1u;
+        bit_buffer = (bit_buffer << nbits) | (static_cast<uint32>(temp2) & mask);
+        buffered_bits += nbits;
+    }
 
-		}
-
-	// Find the number of bits needed for the magnitude of the coefficient
-
-	int nbits = temp >= 256 ? numBitsTable [temp >> 8  ] + 8
-							: numBitsTable [temp & 0xFF];
-
-	// Emit the Huffman-coded symbol for the number of bits
-	int bits_bits = dctbl->ehufsi [nbits];
-	bit_buffer <<= bits_bits;
-	bit_buffer |= dctbl->ehufco [nbits];
-	buffered_bits += bits_bits;
-
-	// Emit that number of bits of the value, if positive,
-	// or the complement of its magnitude, if negative.
-
-	// If the number of bits is 16, there is only one possible difference
-	// value (-32786), so the lossless JPEG spec says not to output anything
-	// in that case.  So we only need to output the difference value if
-	// the number of bits is between 1 and 15.
-
-	if (nbits & 15)
-		{
-		bit_buffer <<= nbits;
-		bit_buffer |= temp2 & (0x0FFFF >> (16 - nbits));
-		buffered_bits += nbits;
-		}
-
-	DNG_ASSERT(buffered_bits < 64, "buffered_bits too big(2)");
-	
-	return buffered_bits;
-	
-	}
+    DNG_ASSERT(buffered_bits < 64, "buffered_bits too big(2)");
+    return buffered_bits;
+}
 
 /*****************************************************************************/
 

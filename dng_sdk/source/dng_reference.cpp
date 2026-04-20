@@ -302,54 +302,132 @@ void RefCopyArea8 (const uint8 *sPtr,
 	}
 
 /*****************************************************************************/
+#ifdef __ARM_NEON
+#  include <arm_neon.h>
 
-void RefCopyArea16 (const uint16 *sPtr,
-					uint16 *dPtr,
-					uint32 rows,
-					uint32 cols,
-					uint32 planes,
-					int32 sRowStep,
-					int32 sColStep,
-					int32 sPlaneStep,
-					int32 dRowStep,
-					int32 dColStep,
-					int32 dPlaneStep)
-	{
-	
-	for (uint32 row = 0; row < rows; row++)
-		{
-		
-		const uint16 *sPtr1 = sPtr;
-			  uint16 *dPtr1 = dPtr;
-			  
-		for (uint32 col = 0; col < cols; col++)
-			{
-			
-			const uint16 *sPtr2 = sPtr1;
-				  uint16 *dPtr2 = dPtr1;
-				  
-			for (uint32 plane = 0; plane < planes; plane++)
-				{
-			
-				*dPtr2 = *sPtr2;
-				
-				sPtr2 += sPlaneStep;
-				dPtr2 += dPlaneStep;
-				
-				}
-			
-			sPtr1 += sColStep;
-			dPtr1 += dColStep;
+static inline void CopyBlock16(const uint16_t * __restrict__ src,
+                                      uint16_t * __restrict__ dst,
+                                      uint32_t n)
+{
+    while (n >= 32) { vst1q_u16_x4(dst, vld1q_u16_x4(src)); src+=32; dst+=32; n-=32; }
+    if   (n >= 16) { vst1q_u16_x2(dst, vld1q_u16_x2(src)); src+=16; dst+=16; n-=16; }
+    if   (n >=  8) { vst1q_u16(dst, vld1q_u16(src));        src+= 8; dst+= 8; n-= 8; }
+    if   (n >=  4) { vst1_u16 (dst, vld1_u16 (src));        src+= 4; dst+= 4; n-= 4; }
+    while (n--) *dst++ = *src++;
+}
+#else
+// Non-NEON fallback for CI / x86 machines
+static inline void CopyBlock16(const uint16_t * __restrict__ src,
+                                      uint16_t * __restrict__ dst,
+                                      uint32_t n)
+{
+    memcpy(dst, src, n * sizeof(uint16_t));
+}
+#endif // __ARM_NEON
 
-			}
-			
-		sPtr += sRowStep;
-		dPtr += dRowStep;
-		
-		}
-		
-	}
+void RefCopyArea16(const uint16_t * __restrict__ sPtr,
+						uint16_t * __restrict__ dPtr,
+						uint32_t rows, uint32_t cols, uint32_t planes,
+						int32_t  sRowStep, int32_t  sColStep, int32_t  sPlaneStep,
+						int32_t  dRowStep, int32_t  dColStep, int32_t  dPlaneStep)
+{
+    const int32_t  iPlanes  = (int32_t)planes;
+    const uint32_t rowElems = cols * planes;
 
+    // Fast path 1: fully contiguous volume
+    if (sPlaneStep == 1         && dPlaneStep == 1         &&
+        sColStep   == iPlanes   && dColStep   == iPlanes   &&
+        sRowStep   == (int32_t)rowElems &&
+        dRowStep   == (int32_t)rowElems)
+    {
+        CopyBlock16(sPtr, dPtr, rows * rowElems);
+        return;
+    }
+
+    // Fast path 2: contiguous rows, strided row pointers
+    if (sPlaneStep == 1 && dPlaneStep == 1 &&
+        sColStep == iPlanes && dColStep == iPlanes)
+    {
+        for (uint32_t row = 0; row < rows; ++row) {
+            CopyBlock16(sPtr, dPtr, rowElems);
+            sPtr += sRowStep;
+            dPtr += dRowStep;
+        }
+        return;
+    }
+
+    // Fast path 3: contiguous planes, strided cols
+    if (sPlaneStep == 1 && dPlaneStep == 1)
+    {
+        for (uint32_t row = 0; row < rows; ++row) {
+            const uint16_t *s1 = sPtr;
+                  uint16_t *d1 = dPtr;
+            for (uint32_t col = 0; col < cols; ++col) {
+                __builtin_prefetch(s1 + 8 * sColStep, 0, 1);
+                CopyBlock16(s1, d1, planes);
+                s1 += sColStep;
+                d1 += dColStep;
+            }
+            sPtr += sRowStep;
+            dPtr += dRowStep;
+        }
+        return;
+    }
+
+    // General strided path — 4-column unrolled
+    for (uint32_t row = 0; row < rows; ++row) {
+        const uint16_t *s1 = sPtr;
+              uint16_t *d1 = dPtr;
+        uint32_t col = 0;
+
+        for (; col + 4 <= cols; col += 4) {
+            __builtin_prefetch(s1 + 8 * sColStep, 0, 1);
+            __builtin_prefetch(d1 + 8 * dColStep, 1, 1);
+
+            const uint16_t *sA=s1,              *sB=s1+sColStep,
+                           *sC=s1+2*sColStep,   *sD=s1+3*sColStep;
+                  uint16_t *dA=d1,              *dB=d1+dColStep,
+                           *dC=d1+2*dColStep,   *dD=d1+3*dColStep;
+
+            uint32_t p = 0;
+            for (; p + 4 <= planes; p += 4) {
+                dA[0]=sA[0]; dA[dPlaneStep]=sA[sPlaneStep];
+                dA[2*dPlaneStep]=sA[2*sPlaneStep]; dA[3*dPlaneStep]=sA[3*sPlaneStep];
+                dB[0]=sB[0]; dB[dPlaneStep]=sB[sPlaneStep];
+                dB[2*dPlaneStep]=sB[2*sPlaneStep]; dB[3*dPlaneStep]=sB[3*sPlaneStep];
+                dC[0]=sC[0]; dC[dPlaneStep]=sC[sPlaneStep];
+                dC[2*dPlaneStep]=sC[2*sPlaneStep]; dC[3*dPlaneStep]=sC[3*sPlaneStep];
+                dD[0]=sD[0]; dD[dPlaneStep]=sD[sPlaneStep];
+                dD[2*dPlaneStep]=sD[2*sPlaneStep]; dD[3*dPlaneStep]=sD[3*sPlaneStep];
+                sA+=4*sPlaneStep; sB+=4*sPlaneStep;
+                sC+=4*sPlaneStep; sD+=4*sPlaneStep;
+                dA+=4*dPlaneStep; dB+=4*dPlaneStep;
+                dC+=4*dPlaneStep; dD+=4*dPlaneStep;
+            }
+            for (; p < planes; ++p) {
+                *dA=*sA; sA+=sPlaneStep; dA+=dPlaneStep;
+                *dB=*sB; sB+=sPlaneStep; dB+=dPlaneStep;
+                *dC=*sC; sC+=sPlaneStep; dC+=dPlaneStep;
+                *dD=*sD; sD+=sPlaneStep; dD+=dPlaneStep;
+            }
+            s1 += 4*sColStep;
+            d1 += 4*dColStep;
+        }
+        for (; col < cols; ++col) {
+            const uint16_t *s2 = s1;
+                  uint16_t *d2 = d1;
+            for (uint32_t p = 0; p < planes; ++p) {
+                *d2 = *s2;
+                s2 += sPlaneStep;
+                d2 += dPlaneStep;
+            }
+            s1 += sColStep;
+            d1 += dColStep;
+        }
+        sPtr += sRowStep;
+        dPtr += dRowStep;
+    }
+}
 /*****************************************************************************/
 
 void RefCopyArea32 (const uint32 *sPtr,
@@ -1290,51 +1368,142 @@ void RefShiftRight16 (uint16 *dPtr,
 
 /*****************************************************************************/
 
-void RefBilinearRow16 (const uint16 *sPtr,
-					   uint16 *dPtr,
-					   uint32 cols,
-					   uint32 patPhase,
-					   uint32 patCount,
-					   const uint32 * kernCounts,
-					   const int32	* const * kernOffsets,
-					   const uint16 * const * kernWeights,
-					   uint32 sShift)
-	{
-	
-	for (uint32 j = 0; j < cols; j++)
-		{
-		
-		const uint16 *p = sPtr + (j >> sShift);
-		
-		uint32 count = kernCounts [patPhase];
-		
-		const int32	 *offsets = kernOffsets [patPhase];
-		const uint16 *weights = kernWeights [patPhase];
-		
-		if (++patPhase == patCount)
-			{
-			patPhase = 0;
-			}
-			
-		uint32 total = 128;
-		
-		for (uint32 k = 0; k < count; k++)
-			{
-			
-			int32  offset = offsets [k];
-			uint32 weight = weights [k];
-			
-			uint32 pixel = p [offset];
-			
-			total += pixel * weight;
-						
-			}
-			
-		dPtr [j] = (uint16) (total >> 8);
-		
-		}
-				
-	}
+static constexpr uint32 kMaxStackPhases = 8;
+
+struct PhaseCache {
+    uint32        count;
+    const int32  *offsets;   // direct pointer — no more double-indirect
+    const uint16 *weights;
+};
+
+void RefBilinearRow16(const uint16    *sPtr,
+                            uint16    *dPtr,
+                            uint32     cols,
+                            uint32     patPhase,
+                            uint32     patCount,
+                      const uint32    *kernCounts,
+                      const int32  * const *kernOffsets,
+                      const uint16 * const *kernWeights,
+                            uint32     sShift)
+{
+    // ------------------------------------------------------------------
+    // 1.  BUILD PHASE CACHE  — eliminates the hot pointer-chase
+    //
+    //  Before:  kernOffsets[patPhase]  → 2 loads + stall each column
+    //  After:   cache[patPhase].offsets → 1 load, likely register/L1
+    // ------------------------------------------------------------------
+    PhaseCache  stackCache[kMaxStackPhases];
+    PhaseCache *cache = (patCount <= kMaxStackPhases)
+                            ? stackCache
+                            : (PhaseCache *)alloca(patCount * sizeof(PhaseCache));
+
+    bool allTwoTap = true;
+    for (uint32 ph = 0; ph < patCount; ph++) {
+        cache[ph].count   = kernCounts [ph];
+        cache[ph].offsets = kernOffsets [ph];   // copy pointer, not data
+        cache[ph].weights = kernWeights [ph];
+        if (kernCounts[ph] != 2) allTwoTap = false;
+    }
+
+    uint32 j = 0;
+
+    // ==================================================================
+    // TIER 1 — 2-tap NEON path: 4 outputs per iteration
+    //
+    // With the cache in place, phase data is one struct-field load away.
+    // The gather of 4 pixel values is still scalar (no native NEON
+    // gather), but the kernel pointer indirection is gone.
+    // ==================================================================
+    if (allTwoTap) {
+
+        // Pre-resolve the 4 phase pointers for the unrolled loop.
+        // The compiler will keep these in registers across iterations.
+        uint32 ph = patPhase;
+
+        for (; j + 4 <= cols; j += 4) {
+
+            // Advance phase ring for 4 consecutive outputs
+            uint32 ph0 = ph;
+            uint32 ph1 = (ph0 + 1 < patCount) ? ph0 + 1 : 0;
+            uint32 ph2 = (ph1 + 1 < patCount) ? ph1 + 1 : 0;
+            uint32 ph3 = (ph2 + 1 < patCount) ? ph2 + 1 : 0;
+
+            // One struct load each — cache[ph].offsets is already resolved
+            const int32  *o0 = cache[ph0].offsets,  *o1 = cache[ph1].offsets;
+            const int32  *o2 = cache[ph2].offsets,  *o3 = cache[ph3].offsets;
+            const uint16 *w0 = cache[ph0].weights,  *w1 = cache[ph1].weights;
+            const uint16 *w2 = cache[ph2].weights,  *w3 = cache[ph3].weights;
+
+            // Base source pointers for each output column
+            const uint16 *p0 = sPtr + ((j    ) >> sShift);
+            const uint16 *p1 = sPtr + ((j + 1) >> sShift);
+            const uint16 *p2 = sPtr + ((j + 2) >> sShift);
+            const uint16 *p3 = sPtr + ((j + 3) >> sShift);
+
+            __builtin_prefetch(sPtr + ((j + 8) >> sShift), 0, 1);
+
+            // ---- Gather: tap 0 across 4 output columns ---------------
+            uint16 px0[4] = { p0[o0[0]], p1[o1[0]], p2[o2[0]], p3[o3[0]] };
+            uint16 wt0[4] = { w0[0],     w1[0],     w2[0],     w3[0]     };
+
+            // ---- Gather: tap 1 across 4 output columns ---------------
+            uint16 px1[4] = { p0[o0[1]], p1[o1[1]], p2[o2[1]], p3[o3[1]] };
+            uint16 wt1[4] = { w0[1],     w1[1],     w2[1],     w3[1]     };
+
+            // ---- NEON: 4 parallel MACs, shift, narrow, store ---------
+            uint32x4_t total = vdupq_n_u32(128);
+            total = vmlal_u16(total, vld1_u16(px0), vld1_u16(wt0));
+            total = vmlal_u16(total, vld1_u16(px1), vld1_u16(wt1));
+            vst1_u16(dPtr + j, vmovn_u32(vshrq_n_u32(total, 8)));
+
+            ph = (ph3 + 1 < patCount) ? ph3 + 1 : 0;
+        }
+        patPhase = ph;
+    }
+
+    // ==================================================================
+    // TIER 2+3 — General path (tail or non-2-tap phases)
+    //
+    // cache[] lookup replaces the original double-indirect.
+    // Inner loop vectorised in groups of 4 taps on AArch64.
+    // ==================================================================
+    for (; j < cols; j++) {
+        const uint16 *p = sPtr + (j >> sShift);
+
+        // Single struct load — no pointer-chase
+        const PhaseCache &pc = cache[patPhase];
+        if (++patPhase == patCount) patPhase = 0;
+
+        uint32       count   = pc.count;
+        const int32  *offsets = pc.offsets;
+        const uint16 *weights = pc.weights;
+
+        uint32 total = 128;
+        uint32 k = 0;
+
+#if defined(__aarch64__)
+        if (count >= 4) {
+            uint32x4_t vacc = vdupq_n_u32(0);
+            for (; k + 4 <= count; k += 4) {
+                uint16 px[4] = {
+                    (uint16)p[offsets[k    ]],
+                    (uint16)p[offsets[k + 1]],
+                    (uint16)p[offsets[k + 2]],
+                    (uint16)p[offsets[k + 3]]
+                };
+                vacc = vmlal_u16(vacc, vld1_u16(px), vld1_u16(weights + k));
+            }
+            total += vaddvq_u32(vacc);
+        }
+#endif
+
+        for (; k < count; k++) {
+            total += (uint32)p[offsets[k]] * weights[k];
+        }
+
+        dPtr[j] = (uint16)(total >> 8);
+    }
+}
 
 /*****************************************************************************/
 
