@@ -3356,14 +3356,7 @@ inline void dng_lossless_encoder<simd>::CountOneDiff (int diff, uint32 *countTab
 
 	// Encode the DC coefficient difference per section F.1.2.1
 
-	int temp = diff;
-
-	if (temp < 0)
-		{
-
-		temp = -temp;
-
-		}
+	int temp = abs(diff);
 
 	// Find the number of bits needed for the magnitude of the coefficient
 	// Use hardware CLZ (Count Leading Zeros) instead of table lookup
@@ -3402,21 +3395,11 @@ inline void dng_lossless_encoder<simd>::EncodeOneDiff (int diff, HuffmanTable *d
 
 	// Encode the DC coefficient difference per section F.1.2.1
 
-	int temp  = diff;
-	int temp2 = diff;
+	int temp  = abs(diff);
 
-	if (temp < 0)
-		{
-
-		temp = -temp;
-
-		// For a negative input, want temp2 = bitwise complement of
-		// abs (input).	 This code assumes we are on a two's complement
-		// machine.
-
-		temp2--;
-
-		}
+	// For a negative input, want temp2 = bitwise complement of abs(input).
+	// This code assumes we are on a two's complement machine.
+	int temp2 = (diff < 0) ? (diff - 1) : diff;
 
 	// Find the number of bits needed for the magnitude of the coefficient
 	// Use hardware CLZ (Count Leading Zeros) instead of table lookup
