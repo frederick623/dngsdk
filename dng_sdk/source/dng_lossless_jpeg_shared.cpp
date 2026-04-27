@@ -3055,11 +3055,9 @@ class dng_lossless_encoder
 
 		uint64 huffPutBuffer;
 		uint64 huffPutBits;
-		
-		// Lookup table for number of bits in an 8 bit value.
-		
-		int numBitsTable [256];
-		
+
+		// Lookup table removed: now using __builtin_clz (ARM64 CLZ instruction)
+
 		std::vector<uint8> streamBuffer;
 		size_t streamBufferOffset;
 
@@ -3153,26 +3151,10 @@ dng_lossless_encoder<simd>::dng_lossless_encoder (const uint16 *srcData,
 	,	streamBufferOffset (0)
 
 	{
-	
-	// Initialize number of bits lookup table.
-	
-	numBitsTable [0] = 0;
-		
-	for (int i = 1; i < 256; i++)
-		{
-		
-		int temp = i;
-		int nbits = 1;
-		
-		while (temp >>= 1)
-			{
-			nbits++;
-			}
-			
-		numBitsTable [i] = nbits;
-		
-		}
-		
+
+	// Number of bits lookup table removed: now using __builtin_clz (ARM64 CLZ instruction)
+	// This saves 256 bytes per encoder instance and eliminates initialization overhead
+
 	// Get an upper bound of the size of encoded output for one chunk
 	// of output. Chunks are the headers and then one per row.
 	//
@@ -3371,27 +3353,29 @@ void dng_lossless_encoder<simd>::FlushBuffer()
 template <SIMDType simd>
 inline void dng_lossless_encoder<simd>::CountOneDiff (int diff, uint32 *countTable)
 	{
-	
+
 	// Encode the DC coefficient difference per section F.1.2.1
-	 
+
 	int temp = diff;
-	
+
 	if (temp < 0)
 		{
-		
+
 		temp = -temp;
- 
+
 		}
 
 	// Find the number of bits needed for the magnitude of the coefficient
+	// Use hardware CLZ (Count Leading Zeros) instead of table lookup
+	// __builtin_clz compiles to ARM64 CLZ instruction (1 cycle latency)
+	// For temp == 0, nbits must be 0; __builtin_clz(0) is undefined, so handle specially
 
-	int nbits = temp >= 256 ? numBitsTable [temp >> 8  ] + 8
-							: numBitsTable [temp & 0xFF];
-			
+	int nbits = temp ? (32 - __builtin_clz(static_cast<unsigned>(temp))) : 0;
+
 	// Update count for this bit length
 
 	countTable [nbits] ++;
-	
+
 	}
 
 /*****************************************************************************/
@@ -3417,27 +3401,29 @@ inline void dng_lossless_encoder<simd>::EncodeOneDiff (int diff, HuffmanTable *d
 	{
 
 	// Encode the DC coefficient difference per section F.1.2.1
-	 
+
 	int temp  = diff;
 	int temp2 = diff;
-	
+
 	if (temp < 0)
 		{
-		
+
 		temp = -temp;
-		
+
 		// For a negative input, want temp2 = bitwise complement of
 		// abs (input).	 This code assumes we are on a two's complement
 		// machine.
 
 		temp2--;
-		
+
 		}
 
 	// Find the number of bits needed for the magnitude of the coefficient
+	// Use hardware CLZ (Count Leading Zeros) instead of table lookup
+	// __builtin_clz compiles to ARM64 CLZ instruction (1 cycle latency)
+	// For temp == 0, nbits must be 0; __builtin_clz(0) is undefined, so handle specially
 
-	int nbits = temp >= 256 ? numBitsTable [temp >> 8  ] + 8
-							: numBitsTable [temp & 0xFF];
+	int nbits = temp ? (32 - __builtin_clz(static_cast<unsigned>(temp))) : 0;
 
 	// Emit the Huffman-coded symbol for the number of bits
 
