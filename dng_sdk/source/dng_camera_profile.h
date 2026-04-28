@@ -210,7 +210,7 @@ class dng_camera_profile_group_selector
 class dng_camera_profile
 	{
 	
-	private:
+	protected:
 	
 		// Name of this camera profile.
 		
@@ -1134,7 +1134,7 @@ class dng_camera_profile
 
 		bool Uses_1_7_Features () const;
 		
-	private:
+	protected:
 	
 		static real64 IlluminantToTemperature (uint32 light,
 											   const dng_illuminant_data &data);
