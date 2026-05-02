@@ -206,7 +206,11 @@ add_library(jxl ${JPEGXL_INTERNAL_OBJECTS})
 strip_internal(JPEGXL_INTERNAL_SHARED_LIBS JPEGXL_INTERNAL_LIBS)
 target_link_libraries(jxl PUBLIC ${JPEGXL_COVERAGE_FLAGS} jxl_base)
 target_link_libraries(jxl PUBLIC jxl_cms)
-target_link_libraries(jxl PRIVATE ${JPEGXL_INTERNAL_SHARED_LIBS})
+if(BUILD_SHARED_LIBS)
+  target_link_libraries(jxl PRIVATE ${JPEGXL_INTERNAL_SHARED_LIBS})
+else()
+  target_link_libraries(jxl PUBLIC ${JPEGXL_INTERNAL_SHARED_LIBS})
+endif()
 set_target_properties(jxl PROPERTIES
   VERSION ${JPEGXL_LIBRARY_VERSION}
   SOVERSION ${JPEGXL_LIBRARY_SOVERSION})
@@ -215,7 +219,11 @@ set_target_properties(jxl PROPERTIES
 add_library(jxl_dec $<TARGET_OBJECTS:jxl_dec-obj>)
 strip_internal(JPEGXL_DEC_INTERNAL_SHARED_LIBS JPEGXL_DEC_INTERNAL_LIBS)
 target_link_libraries(jxl_dec PUBLIC ${JPEGXL_COVERAGE_FLAGS} jxl_base)
-target_link_libraries(jxl_dec PRIVATE ${JPEGXL_DEC_INTERNAL_SHARED_LIBS})
+if(BUILD_SHARED_LIBS)
+  target_link_libraries(jxl_dec PRIVATE ${JPEGXL_DEC_INTERNAL_SHARED_LIBS})
+else()
+  target_link_libraries(jxl_dec PUBLIC ${JPEGXL_DEC_INTERNAL_SHARED_LIBS})
+endif()
 set_target_properties(jxl_dec PROPERTIES
   VERSION ${JPEGXL_LIBRARY_VERSION}
   SOVERSION ${JPEGXL_LIBRARY_SOVERSION})

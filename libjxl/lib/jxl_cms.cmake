@@ -31,13 +31,21 @@ set(JPEGXL_CMS_LIBRARY_REQUIRES "")
 if (JPEGXL_ENABLE_SKCMS)
   target_link_skcms(jxl_cms)
 else()
-  target_link_libraries(jxl_cms PRIVATE lcms2)
+  if(BUILD_SHARED_LIBS)
+    target_link_libraries(jxl_cms PRIVATE lcms2)
+  else()
+    target_link_libraries(jxl_cms PUBLIC lcms2)
+  endif()
   if (JPEGXL_FORCE_SYSTEM_LCMS2)
     set(JPEGXL_CMS_LIBRARY_REQUIRES "lcms2")
   endif()
 endif()
 
-target_link_libraries(jxl_cms PRIVATE hwy)
+if(BUILD_SHARED_LIBS)
+  target_link_libraries(jxl_cms PRIVATE hwy)
+else()
+  target_link_libraries(jxl_cms PUBLIC hwy)
+endif()
 
 set_target_properties(jxl_cms PROPERTIES
         VERSION ${JPEGXL_LIBRARY_VERSION}
