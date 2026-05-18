@@ -30,4 +30,7 @@ If (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "iOS")
     add_executable(cube2xmp ${CMAKE_CURRENT_SOURCE_DIR}/cube2xmp.cpp)
     # Link against the library the child built
     target_link_libraries(cube2xmp PRIVATE dngsdk expat)
+
+    add_executable(test_clz_optimization ${CMAKE_CURRENT_SOURCE_DIR}/test_clz_optimization.cpp)
+    # Benchmark for CLZ optimization - no dependencies needed
 endif()

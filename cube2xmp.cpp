@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -317,6 +318,26 @@ std::string FingerprintToHex(const dng_fingerprint& fp) {
     return std::string(hex);
 }
 
+std::string GenerateUuidHex32() {
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<uint64_t> dist;
+
+    uint64_t a = dist(gen);
+    uint64_t b = dist(gen);
+
+    std::ostringstream oss;
+    oss << std::hex << std::uppercase << std::setfill('0')
+        << std::setw(16) << a << std::setw(16) << b;
+    return oss.str();
+}
+
+void SetAltLang(dng_xmp& xmp, const char* ns, const char* path, const std::string& value) {
+    dng_string s;
+    s.Set(value.c_str());
+    xmp.SetAltLangDefault(ns, path, s);
+}
+
 void WriteLookXmp(const std::string& outXmpPath,
                   const std::string& profileName,
                   const dng_look_table& lookTable,
@@ -326,20 +347,34 @@ void WriteLookXmp(const std::string& outXmpPath,
     xmp.RequireMeta();
 
     xmp.Set(XMP_NS_CRS, "PresetType", "Look");
+    xmp.Set(XMP_NS_CRS, "Cluster", "");
     xmp.Set(XMP_NS_CRS, "CameraModelRestriction", "");
+    xmp.Set(XMP_NS_CRS, "Copyright", "");
+    xmp.Set(XMP_NS_CRS, "ContactInfo", "");
     xmp.SetBoolean(XMP_NS_CRS, "SupportsAmount", true);
     xmp.SetBoolean(XMP_NS_CRS, "SupportsColor", true);
     xmp.SetBoolean(XMP_NS_CRS, "SupportsMonochrome", true);
     xmp.SetBoolean(XMP_NS_CRS, "SupportsHighDynamicRange", true);
+    xmp.SetBoolean(XMP_NS_CRS, "SupportsNormalDynamicRange", true);
     xmp.SetBoolean(XMP_NS_CRS, "SupportsSceneReferred", true);
     xmp.SetBoolean(XMP_NS_CRS, "SupportsOutputReferred", true);
+    xmp.SetBoolean(XMP_NS_CRS, "HasSettings", true);
+    xmp.SetBoolean(XMP_NS_CRS, "ConvertToGrayscale", false);
+    // ToneMapStrength is required by Lightroom for Look profiles.
+    // 0 = no additional tone mapping on top of the LUT.
+    xmp.Set(XMP_NS_CRS, "ToneMapStrength", "0");
 
-    xmp.Set(XMP_NS_CRS, "Version", "16.0");
+    xmp.Set(XMP_NS_CRS, "Version", "15.4");
     xmp.Set(XMP_NS_CRS, "ProcessVersion", "11.0");
 
-    dng_string name;
-    name.Set(profileName.c_str());
-    xmp.SetAltLangDefault(XMP_NS_CRS, "Name", name);
+    SetAltLang(xmp, XMP_NS_CRS, "Name",        profileName);
+    SetAltLang(xmp, XMP_NS_CRS, "ShortName",   profileName);
+    SetAltLang(xmp, XMP_NS_CRS, "SortName",    profileName);
+    SetAltLang(xmp, XMP_NS_CRS, "Group",       "Profiles");
+    SetAltLang(xmp, XMP_NS_CRS, "Description", "");
+
+    const std::string uuidHex = GenerateUuidHex32();
+    xmp.Set(XMP_NS_CRS, "UUID", uuidHex.c_str());
 
     const dng_fingerprint& fp = lookTable.Fingerprint();
     xmp.SetFingerprint(XMP_NS_CRS, "LookTable", fp);
@@ -350,7 +385,10 @@ void WriteLookXmp(const std::string& outXmpPath,
 
     xmp.Set(XMP_NS_CRS, tablePath.c_str(), encodedTable.c_str());
 
-    AutoPtr<dng_memory_block> serialized(xmp.Serialize(false, 0, 4096, false, true));
+    // asPacket=false  → no <?xpacket?> wrapper (matches reference profiles)
+    // padBytes=0      → no trailing whitespace padding
+    // compact=true    → scalar values as RDF attributes, LangAlt as elements
+    AutoPtr<dng_memory_block> serialized(xmp.Serialize(false, 0, 0, false, true));
 
     std::ofstream out(outXmpPath, std::ios::binary);
     if (!out) {
